@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/lucas-clemente/quic-go"
 	"github.com/lucas-clemente/quic-go/h2quic"
 )
 
@@ -15,6 +16,7 @@ func main() {
 	protocol := flag.String("protocol", "quic", "The protocol to be used")
 	certPath := flag.String("cert", "cert.crt", "Path to TLS cert file, required for quic")
 	keyPath := flag.String("key", "priv.key", "Path to TLS key file, required for quic")
+	multipath := flag.Bool("multipath_quic", false, "Enable multipath use for quic")
 	flag.Parse()
 	if *dir == "" {
 		panic("parameter 'dir' is required")
@@ -23,7 +25,16 @@ func main() {
 	addr := fmt.Sprintf(":%v", *port)
 	fmt.Println("Creating", *protocol, "server at", addr)
 	if *protocol == "quic" {
-		log.Fatal(h2quic.ListenAndServeQUIC(addr, *certPath, *keyPath, fs))
+		quicServer := &h2quic.Server{
+			Server: &http.Server{
+				Addr:    addr,
+				Handler: fs,
+			},
+			QuicConfig: &quic.Config{
+				CreatePaths: *multipath,
+			},
+		}
+		quicServer.ListenAndServeTLS(*certPath, *keyPath)
 	} else if *protocol == "tcp" {
 		log.Fatal(http.ListenAndServe(addr, fs))
 	} else {
