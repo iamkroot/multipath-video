@@ -1,0 +1,3 @@
+[submodule "mpquic-hls-dl"]
+	path = mpquic-hls-dl
+	url = git@github.com:iamkroot/mpquic-hls-dl.git
