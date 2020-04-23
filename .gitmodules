@@ -1,3 +1,3 @@
-[submodule "mpquic-hls-dl"]
-	path = mpquic-hls-dl
-	url = git@github.com:iamkroot/mpquic-hls-dl.git
+[submodule "client"]
+	path = client
+	url = git@github.com:iamkroot/multipath-hls-dl.git
