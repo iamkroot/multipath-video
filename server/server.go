@@ -34,7 +34,7 @@ func main() {
 				CreatePaths: *multipath,
 			},
 		}
-		quicServer.ListenAndServeTLS(*certPath, *keyPath)
+		log.Fatal(quicServer.ListenAndServeTLS(*certPath, *keyPath))
 	} else if *protocol == "tcp" {
 		log.Fatal(http.ListenAndServe(addr, fs))
 	} else {
