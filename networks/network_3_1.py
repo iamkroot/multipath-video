@@ -27,9 +27,9 @@ class CustomTopo(Topo):
         client = self.addHost("client")
 
         self.addLink(server, router, intfName="server-eth0", intfName2="router-eth0")
-        self.addLink(server, router, intfName="server-eth1", intfName2="router-eth1")
-        self.addLink(client, router, intfName="client-eth0", intfName2="router-eth2")
-        self.addLink(client, router, intfName="client-eth1", intfName2="router-eth3")
+        self.addLink(client, router, intfName="client-eth0", intfName2="router-eth1")
+        self.addLink(client, router, intfName="client-eth1", intfName2="router-eth2")
+        self.addLink(client, router, intfName="client-eth2", intfName2="router-eth3")
 
 
 def run():
@@ -40,10 +40,10 @@ def run():
 
     # set router IPs
     router.setIP("10.0.0.1/24", intf="router-eth0")
-    router.setIP("10.0.1.1/24", intf="router-eth1")
 
-    router.setIP("11.0.0.1/24", intf="router-eth2")
-    router.setIP("11.0.1.1/24", intf="router-eth3")
+    router.setIP("11.0.0.1/24", intf="router-eth1")
+    router.setIP("11.0.1.1/24", intf="router-eth2")
+    router.setIP("11.0.2.1/24", intf="router-eth3")
 
     routing_cmds = [
         "ip route add {subnet} dev {dev} src {ip} table {rt_table}",
@@ -53,8 +53,8 @@ def run():
     ]
 
     # assign IPs and routes to hosts
-    for host, ip_prefix in ((server, "10"), (client, "11")):
-        for i in range(0, 2):
+    for host, ip_prefix, num_links in ((server, "10", 1), (client, "11", 3)):
+        for i in range(0, num_links):
             params = {
                 "dev": f"{host.name}-eth{i}",  # eg: server-eth0
                 "subnet": f"{ip_prefix}.0.{i}.0/24",  # eg: 10.0.0.0/24
@@ -71,11 +71,11 @@ def run():
     client.cmd("route add default gw 11.0.0.1 client-eth0")
 
     # rate limit links
-    server.cmd("tc qdisc add dev server-eth0 root netem rate 500kbit")
-    server.cmd("tc qdisc add dev server-eth1 root netem rate 750kbit")
+    server.cmd("tc qdisc add dev server-eth0 root netem rate 5000kbit")
 
-    client.cmd("tc qdisc add dev client-eth0 root netem rate 500kbit")
-    client.cmd("tc qdisc add dev client-eth1 root netem rate 500kbit")
+    client.cmd("tc qdisc add dev client-eth0 root netem rate 1000kbit")
+    client.cmd("tc qdisc add dev client-eth1 root netem rate 750kbit")
+    client.cmd("tc qdisc add dev client-eth2 root netem rate 500kbit")
 
     CLI(net)
     net.stop()
