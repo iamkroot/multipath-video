@@ -22,42 +22,61 @@ class CustomRouter(Node):
 class CustomTopo(Topo):
     def build(self):
 
-        router = self.addNode("r0", cls=CustomRouter, ip="192.168.1.100/24")
+        router = self.addNode("router", cls=CustomRouter)
+        server = self.addHost("server")
+        client = self.addHost("client")
 
-        s1 = self.addSwitch("s1")
-        s2 = self.addSwitch("s2")
-
-        self.addLink(s1, router, intfName2="r0-eth1", params2={"ip": "192.168.1.100/24"})
-        self.addLink(s2, router, intfName2="r0-eth2", params2={"ip": "172.16.1.100/24"})
-
-        h1 = self.addHost("h1", ip="192.168.1.101", defaultRoute="via 192.168.1.100")
-        h2 = self.addHost("h2", ip="172.16.1.101", defaultRoute="via 172.16.1.100")
-
-        self.addLink(h1, s1, cls=TCLink, bw=1)
-        self.addLink(h1, s1, cls=TCLink, bw=2)
-        self.addLink(h2, s2, cls=TCLink, bw=1)
-        self.addLink(h2, s2, cls=TCLink, bw=1)
-
-        # h1.setIP('192.168.1.100', intf='h1-eth0')
-        # h1.setIP('192.168.1.101', intf='h1-eth1')
-
-        # h2.setIP('172.16.1.100', intf='h2-eth0')
-        # h2.setIP('172.16.1.101', intf='h2-eth1')
+        self.addLink(server, router, intfName="server-eth0", intfName2="router-eth0")
+        self.addLink(server, router, intfName="server-eth1", intfName2="router-eth1")
+        self.addLink(client, router, intfName="client-eth0", intfName2="router-eth2")
+        self.addLink(client, router, intfName="client-eth1", intfName2="router-eth3")
 
 
 def run():
-    "Test linux router"
     topo = CustomTopo()
-    net = Mininet(topo=topo, link=TCLink)  # controller is used by s1-s3
+    net = Mininet(topo=topo, link=TCLink)
     net.start()
-    h1, h2 = net.get("h1", "h2")
-    h1.setIP("192.168.1.101", intf="h1-eth0")
-    h1.setIP("192.168.1.102", intf="h1-eth1")
+    router, server, client = net.get("router", "server", "client")
 
-    h2.setIP("172.16.1.101", intf="h2-eth0")
-    h2.setIP("172.16.1.102", intf="h2-eth1")
-    info("*** Routing Table on Router:\n")
-    info(net["r0"].cmd("route"))
+    # set router IPs
+    router.setIP("10.0.0.1/24", intf="router-eth0")
+    router.setIP("10.0.1.1/24", intf="router-eth1")
+
+    router.setIP("11.0.0.1/24", intf="router-eth2")
+    router.setIP("11.0.1.1/24", intf="router-eth3")
+
+    routing_cmds = [
+        "ip route add {subnet} dev {dev} src {ip} table {rt_table}",
+        "ip route add default via {router_ip} dev {dev} table {rt_table}",
+        "ip rule add from {ip}/32 table {rt_table}",
+        "ip rule add to {ip}/32 table {rt_table}",
+    ]
+
+    # assign IPs and routes to hosts
+    for host, ip_prefix in ((server, "10"), (client, "11")):
+        for i in range(0, 2):
+            params = {
+                "dev": f"{host.name}-eth{i}",  # eg: server-eth0
+                "subnet": f"{ip_prefix}.0.{i}.0/24",  # eg: 10.0.0.0/24
+                "router_ip": f"{ip_prefix}.0.{i}.1",  # eg: 10.0.0.1
+                "ip": f"{ip_prefix}.0.{i}.2",  # eg: 10.0.0.2
+                "rt_table": f"rt_{host.name}_eth{i}",  # eg: rt_server_eth0
+            }
+            host.setIP(f"{params['ip']}/24", intf=params["dev"])
+            for cmd in routing_cmds:
+                host.cmd(cmd.format(**params))
+
+    # add default gateways
+    server.cmd("route add default gw 10.0.0.1 server-eth0")
+    client.cmd("route add default gw 11.0.0.1 client-eth0")
+
+    # rate limit links
+    server.cmd("tc qdisc add dev server-eth0 root netem rate 500kbit")
+    server.cmd("tc qdisc add dev server-eth1 root netem rate 750kbit")
+
+    client.cmd("tc qdisc add dev client-eth0 root netem rate 500kbit")
+    client.cmd("tc qdisc add dev client-eth1 root netem rate 500kbit")
+
     CLI(net)
     net.stop()
 
